@@ -1,0 +1,9 @@
+Click==7.0
+colour==0.1.5
+numpy==1.17.3
+pip==19.0.3
+PyQt5==5.13.0
+PyQt5-sip==12.7.0
+pyqt5-tools==5.13.0.1.5
+python-dotenv==0.10.3
+setuptools==40.8.0
