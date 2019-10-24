@@ -1,45 +1,108 @@
+from reader import read_and_draw
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
-from colour import Color
 import struct
 import sys
 import multiprocessing
 import time
 import numpy as np
-from reader import read_and_draw
-import PIL
-
+from colour import Color
+from MapView import MapView
+from AreaList import AreaList
+from AreaAddPanel import AreaAddPanel
 
 class GRDReader(QMainWindow):
+    points = []
+    pointsCounter = 0
+    areasCounter = 0
+    areaWidgets = []
+
     def __init__(self, *args, **kwargs):
         super(GRDReader, self).__init__(*args, **kwargs)
         self.setWindowTitle("GRD-reader")
-            
-        self.img = self.read_grd('D:/Projects/VS/GRDReader/Bezymyanka-Abramov_raschet.grd', 100)
-        #img = self.get_grd_image(1000)
 
-        label = QLabel()
-        label.setPixmap(QPixmap(QPixmap.fromImage(self.img)))
-        print("{} sec".format(time.time()-s_time))
-        label.mousePressEvent = self.get_pos
-        layout = QVBoxLayout()
-        layout.addWidget(label)
-        widget = QWidget()
-        widget.setLayout(layout)
-        self.setCentralWidget(widget)
+        self.setMenu()
 
-    def read_grd(self, filename, levels):
-        #matrix
-        #file = open(filename, 'rb')
-        #file.read(4)
-        #Nx, Ny = struct.unpack("h", file.read(2))[0], struct.unpack("h", file.read(2))[0]
-        #Xmin, Xmax = struct.unpack("d", file.read(8))[0], struct.unpack("d", file.read(8))[0]
-        #Ymin, Ymax = struct.unpack("d", file.read(8))[0], struct.unpack("d", file.read(8))[0]
-        #self.Zmin, self.Zmax = struct.unpack("d", file.read(8))[0], struct.unpack("d", file.read(8))[0]
-        #matrix = []
+        self.map = MapView(self)
+        self.map.photoClicked.connect(self.addPoint)
 
-        #image
+        #Main
+        self.layoutMain = QGridLayout()
+
+        #Instruments panel
+        self.instrumentPanel = QWidget()
+        self.instrumentPanelLayout = QHBoxLayout()
+        self.instrumentPanelLayout.setContentsMargins(0, 2, 0, 2)
+        self.toggleDragMode = QPushButton("Прокрутка/выбор точек")
+        self.toggleDragMode.clicked.connect(self.map.toggleDragMode)
+        self.instrumentPanelLayout.addWidget(self.toggleDragMode)
+        self.instrumentPanelLayout.addItem(QSpacerItem(20, 40, QSizePolicy.Expanding, QSizePolicy.Minimum))
+        self.instrumentPanel.setLayout(self.instrumentPanelLayout)
+
+        #Right panel
+        self.rightPanel = QWidget()
+        self.rightPanel.setFixedWidth(350)
+        self.rightPanelLayout = QBoxLayout(QBoxLayout.TopToBottom)
+        self.rightPanelLayout.setSpacing(0)
+
+        #Widget for adding areas
+        self.areaAddPanel = AreaAddPanel()
+
+        #Add new area button
+        self.addAreaButton = QPushButton("Добавить зону")
+        self.addAreaButton.clicked.connect(self.addArea)
+
+        #List of areas
+        self.areaList = AreaList()
+
+        self.verticalSpacer = QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding)
+
+        self.layoutMain.addWidget(self.instrumentPanel, 0, 0, 1, 2)
+        self.layoutMain.addWidget(self.map, 1, 0)
+        self.rightPanelLayout.addWidget(self.areaAddPanel)
+        self.rightPanelLayout.addWidget(self.addAreaButton)
+        self.rightPanelLayout.addWidget(self.areaList)
+        self.rightPanelLayout.addItem(self.verticalSpacer)
+        self.rightPanel.setLayout(self.rightPanelLayout)
+        self.layoutMain.addWidget(self.rightPanel, 1, 1)
+
+        mw = QWidget()
+        mw.setLayout(self.layoutMain)
+        self.setGeometry(500, 300, 800, 600)
+        self.setCentralWidget(mw)
+
+    #Creating menu
+    def setMenu(self):
+        #Open .grd
+        openGRDAction = QAction("Открыть .grd файл", self)
+        openGRDAction.setStatusTip('Открыть .grd файл')
+        openGRDAction.triggered.connect(self.openFileDialog)
+
+        #Export
+        exportAction = QAction("Экспорт", self)
+        exportAction.setStatusTip('Экспортировать зоны')
+        exportAction.triggered.connect(self.exportAreas)
+
+        self.statusBar()
+
+        mainMenu = self.menuBar()
+        menu = mainMenu.addMenu('&Меню')
+        menu.addAction(openGRDAction)
+        menu.addAction(exportAction)
+        
+    def openFileDialog(self):
+        fname = QFileDialog.getOpenFileName(self, 'Открыть файл', '/home')[0]
+        if not fname:
+            return 0
+        elif not fname.endswith(".grd"):
+            self.openMesBox("Ошибка!", "Программа принимает только файлы формата .grd")
+            return 0
+
+        self.matrix, self.img = self.readGRD(fname, 30)
+        self.map.setPhoto(self.img)
+       
+    def readGRD(self, filename, levels):
         green = Color("green")
         red = Color("red")
         colorRange = list(green.range_to(red, levels))
@@ -47,88 +110,90 @@ class GRDReader(QMainWindow):
 
         for c in colorRange:
             col = QColor(c.get_hex())
-            colorRangeCopy.append((col.red(), col.green(), col.blue(), col.alpha()))
+            colorRangeCopy.append([col.blue(), col.green(), col.red(), col.alpha()])
 
         colorRange = colorRangeCopy
 
-        s_time = time.time()
+        matrix, imgMatrix = read_and_draw([filename, colorRange])
 
-        try:
-            img = read_and_draw(["D:/Projects/VS/GRDReader/relief.grd", 
-                                colorRange])[1]
-            img = QImage.loadFromData(img)
-
-        except Exception as ex:
-            print(ex)
-
-        #h = (self.Zmax - self.Zmin) / levels
-        #zLevels = []
-
-        #for i in range(1, levels + 1):
-        #    zLevels.append(self.Zmin + h * i)
-
-        #img = QImage(Nx, Ny, 5)
-        #ptr = img.bits()
-        #ptr.setsize(img.byteCount())
-        #arr = np.asarray(ptr).reshape(img.height(), img.width(), 4)
-
-        ##handler
-        #for y in range(Ny):
-        #    raw = []
-        #    for x in range(Nx):
-        #        z = struct.unpack("f", file.read(4))[0]
-        #        raw.append(z)
-
-        #        for level in range(levels):
-        #            if (z <= zLevels[level]):
-        #                arr[y, x] = colorRange[level]
-        #                break
-
-        #    matrix.append(raw)
-
-        #file.close()
-        #self.matrix = matrix
-
-        return img
-
-    def get_grd_image(self, levels):
-        levels = 50
-        green = Color("green")
-        red = Color("red")
-        colorRange = list(green.range_to(red, levels))
-        colorRangeCopy = []
-
-        for c in colorRange:
-            col = QColor(c.get_hex())
-            colorRangeCopy.append((col.red(), col.green(), col.blue(), col.alpha()))
-
-        colorRange = colorRangeCopy
-
-        h = (self.Zmax - self.Zmin) / levels
-        zLevels = []
-
-        for i in range(1, levels + 1):
-            zLevels.append(self.Zmin + h * i)
-
-        Ys, Xs = len(self.matrix), len(self.matrix[0])
-        img = QImage(Xs, Ys, 5)
+        img = QImage(len(imgMatrix[0]), len(imgMatrix), 5)
         ptr = img.bits()
         ptr.setsize(img.byteCount())
         arr = np.asarray(ptr).reshape(img.height(), img.width(), 4)
+        np.copyto(arr, imgMatrix, casting="unsafe")
 
-        for y in range(Ys):
-            for x in range(Xs):
-                for level in range(levels):
-                    if (self.matrix[y][x] <= zLevels[level]):
-                        arr[y, x] = colorRange[level]
-                        break
+        return matrix, QPixmap(QPixmap.fromImage(img))
 
-        return QPixmap(QPixmap.fromImage(img))
+    #Add new point
+    def addPoint(self, event):
+        if(not self.map.isDragMode):
+            x, y = event.x()+1, len(self.matrix) - event.y() + 1
+            point = self.areaAddPanel.addPoint(x, y)
 
-    def get_pos(self, event):
-        color = self.img.pixelColor(event.pos().x(), event.pos().y())
-        print(color.red(), color.green(), color.blue(), color.alpha())
+            if(point == 0):
+                self.openMesBox("Ошибка!", "Не удалось построить зону. Выберите другую точку")
+            elif(point):
+                self.points.append(self.map.drawPoint(event.x(), event.y()))
+            else:
+                self.openMesBox("Ошибка!", "Нельзя указать больше 2-х точек")
 
+    #Remove last point
+    def removeLastPoint(self):
+        removedPoint = self.areaAddPanel.removeLastPoint()
+
+        if(removedPoint):
+            self.map._scene.removeItem(self.points.pop())
+
+    #Add area with parameters to list
+    def addArea(self):
+        #text += "({};{})|".format(point[0], point[1])
+
+        if(len(self.points) == 2):
+            self.areaList.addArea(self.areaAddPanel.points[0], 
+                                  self.areaAddPanel.points[1], 
+                                  self.areaAddPanel.angle)
+
+            self.removeLastPoint()
+            self.removeLastPoint()
+            self.areaAddPanel.angleLabel.setText("Угол: ")
+            self.areaAddPanel.angle = ""
+
+    #Message box
+    def openMesBox(self, title, text):
+        dlg = QDialog(self)
+        dlg.setWindowTitle(title)
+        l = QHBoxLayout()
+        label = QLabel()
+        label.setText(text)
+        l.addWidget(label)
+        dlg.setLayout(l)
+        dlg.exec_()
+
+    #Export areas
+    def exportAreas(self):
+        fname = QFileDialog.getSaveFileName(self, 'Экспорт', '/home', "*.dat")[0]
+        file = open(fname, "w")
+        areas = self.areaList.areas
+
+        for i in range(len(areas)):
+            area = areas[i]
+            file.write(str(area.angle)+"\n")
+            file.write(str(area.points[0][0])+"\n")
+            file.write(str(area.points[1][0])+"\n")
+            file.write(str(area.points[0][1])+"\n")
+            file.write(str(area.points[1][1]))
+
+            if(i < len(areas) - 1):
+                file.write("\n")
+
+        file.close()
+
+    #Check shortcuts
+    def keyPressEvent(self, event):
+        
+        #Remove last point
+        if int(event.modifiers()) == (Qt.ControlModifier) and event.key() == Qt.Key_Z:
+            self.removeLastPoint()
 
 app = QApplication(sys.argv)
 
