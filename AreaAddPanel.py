@@ -42,7 +42,7 @@ class AreaAddPanel(QWidget):
             else:
                 point = [self.points[0][0] - x, self.points[0][1] - y]
 
-            self.angle = (math.atan(point[1]/point[0])*(180/math.pi))/90
+            self.angle = -((math.atan(point[1]/point[0])*(180/math.pi))/90)
             self.angleLabel.setText("Угол: " + str(self.angle))
             self.points.append([x, y])
             return [x, y]

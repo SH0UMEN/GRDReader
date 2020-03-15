@@ -105,6 +105,7 @@ class GRDReader(QMainWindow):
     def readGRD(self, filename, levels):
         green = Color("green")
         red = Color("red")
+        print(red.get_hex())
         colorRange = list(green.range_to(red, levels))
         colorRangeCopy = []
 
@@ -178,10 +179,20 @@ class GRDReader(QMainWindow):
         for i in range(len(areas)):
             area = areas[i]
             file.write(str(area.angle)+"\n")
-            file.write(str(area.points[0][0])+"\n")
-            file.write(str(area.points[1][0])+"\n")
-            file.write(str(area.points[0][1])+"\n")
-            file.write(str(area.points[1][1]))
+            
+            if(area.points[0][0] >= area.points[1][0]):
+                file.write(str(area.points[1][0])+"\n")
+                file.write(str(area.points[0][0])+"\n")
+            else:
+                file.write(str(area.points[0][0])+"\n")
+                file.write(str(area.points[1][0])+"\n")
+
+            if(area.points[0][1] >= area.points[1][1]):
+                file.write(str(area.points[1][1])+"\n")
+                file.write(str(area.points[0][1]))
+            else:
+                file.write(str(area.points[0][1])+"\n")
+                file.write(str(area.points[1][1]))
 
             if(i < len(areas) - 1):
                 file.write("\n")
